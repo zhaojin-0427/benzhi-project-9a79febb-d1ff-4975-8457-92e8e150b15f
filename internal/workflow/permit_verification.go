@@ -7,7 +7,18 @@ import (
 	"stageguard/internal/domain"
 )
 
-var permitLookupCache sync.Map
+// permitLookupCache caches permits resolved by PermitCode for a single Service.
+// The cache is scoped to the Service (and therefore to the store/ledger it
+// wraps) so permits from one ledger can never leak into a query served by a
+// different Service instance sharing the same process.
+type permitLookupCache struct {
+	mu sync.Mutex
+	m  map[string]domain.ActivationPermit
+}
+
+func newPermitLookupCache() *permitLookupCache {
+	return &permitLookupCache{m: map[string]domain.ActivationPermit{}}
+}
 
 type PermitVerification struct {
 	Valid            bool                    `json:"valid"`
@@ -19,12 +30,12 @@ type PermitVerification struct {
 }
 
 func (s *Service) PermitByCode(code string) (domain.ActivationPermit, error) {
-	if cached, ok := permitLookupCache.Load(code); ok {
-		return cached.(domain.ActivationPermit), nil
+	if cached, ok := s.permitCache.lookup(code); ok {
+		return cached, nil
 	}
 	for _, p := range s.store.Snapshot().Permits {
 		if p.PermitCode == code {
-			permitLookupCache.Store(code, p)
+			s.permitCache.store(code, p)
 			return p, nil
 		}
 	}
@@ -69,4 +80,17 @@ func (s *Service) VerifyPermit(code string) (PermitVerification, error) {
 	out.ReasonCode = "VALID"
 	out.Message = "许可有效"
 	return out, nil
+}
+
+func (c *permitLookupCache) lookup(code string) (domain.ActivationPermit, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	p, ok := c.m[code]
+	return p, ok
+}
+
+func (c *permitLookupCache) store(code string, p domain.ActivationPermit) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.m[code] = p
 }

@@ -10,9 +10,14 @@ import (
 	"time"
 )
 
-type Service struct{ store *storage.Store }
+type Service struct {
+	store       *storage.Store
+	permitCache *permitLookupCache
+}
 
-func New(store *storage.Store) *Service      { return &Service{store: store} }
+func New(store *storage.Store) *Service {
+	return &Service{store: store, permitCache: newPermitLookupCache()}
+}
 func (s *Service) Snapshot() domain.Snapshot { return s.store.Snapshot() }
 
 type CreateDossierCommand struct {
