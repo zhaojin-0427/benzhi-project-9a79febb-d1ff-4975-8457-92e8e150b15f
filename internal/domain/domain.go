@@ -148,14 +148,20 @@ type AuditEvent struct {
 	Hash      string    `json:"hash"`
 }
 type Snapshot struct {
-	SchemaVersion int                         `json:"schemaVersion"`
-	IntegrityHash string                      `json:"integrityHash"`
-	Dossiers      map[string]SafetyDossier    `json:"dossiers"`
-	Inspections   map[string]InspectionItem   `json:"inspections"`
-	Issues        map[string]SafetyIssue      `json:"issues"`
-	Permits       map[string]ActivationPermit `json:"permits"`
-	Events        []AuditEvent                `json:"events"`
-	BatchReceipts map[string]BatchReceipt     `json:"batchReceipts,omitempty"`
+	SchemaVersion   int                         `json:"schemaVersion"`
+	IntegrityHash   string                      `json:"integrityHash"`
+	Dossiers        map[string]SafetyDossier    `json:"dossiers"`
+	Inspections     map[string]InspectionItem   `json:"inspections"`
+	Issues          map[string]SafetyIssue      `json:"issues"`
+	Permits         map[string]ActivationPermit `json:"permits"`
+	Events          []AuditEvent                `json:"events"`
+	BatchReceipts   map[string]BatchReceipt     `json:"batchReceipts,omitempty"`
+	DossierReceipts map[string]DossierReceipt   `json:"dossierReceipts,omitempty"`
+}
+
+type DossierReceipt struct {
+	DossierID   string `json:"dossierID"`
+	Fingerprint string `json:"fingerprint"`
 }
 
 type BatchReceipt struct {
@@ -168,5 +174,5 @@ type BatchReceipt struct {
 }
 
 func NewSnapshot() Snapshot {
-	return Snapshot{SchemaVersion: 1, Dossiers: map[string]SafetyDossier{}, Inspections: map[string]InspectionItem{}, Issues: map[string]SafetyIssue{}, Permits: map[string]ActivationPermit{}, Events: []AuditEvent{}, BatchReceipts: map[string]BatchReceipt{}}
+	return Snapshot{SchemaVersion: 1, Dossiers: map[string]SafetyDossier{}, Inspections: map[string]InspectionItem{}, Issues: map[string]SafetyIssue{}, Permits: map[string]ActivationPermit{}, Events: []AuditEvent{}, BatchReceipts: map[string]BatchReceipt{}, DossierReceipts: map[string]DossierReceipt{}}
 }

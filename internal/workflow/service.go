@@ -19,6 +19,7 @@ type CreateDossierCommand struct {
 	ShowName, Venue, CreatedBy string
 	ScheduledAt                time.Time
 	EquipmentBoundary          []domain.Equipment
+	IdempotencyKey             string
 }
 
 func (s *Service) CreateDossier(c CreateDossierCommand) (domain.SafetyDossier, error) {
@@ -27,7 +28,13 @@ func (s *Service) CreateDossier(c CreateDossierCommand) (domain.SafetyDossier, e
 	}
 	now := time.Now().UTC()
 	d := domain.SafetyDossier{ID: newID("dos"), ShowName: strings.TrimSpace(c.ShowName), Venue: strings.TrimSpace(c.Venue), ScheduledAt: c.ScheduledAt, EquipmentBoundary: c.EquipmentBoundary, Status: domain.StatusDraft, Version: 1, CreatedBy: strings.TrimSpace(c.CreatedBy), UpdatedAt: now, Revisions: []domain.DossierRevision{}}
-	return s.store.CreateDossier(d, c.CreatedBy)
+	key := strings.TrimSpace(c.IdempotencyKey)
+	fp := ""
+	if key != "" {
+		fp = createDossierFingerprint(c)
+	}
+	dossier, _, err := s.store.CreateDossierWithReceipt(d, c.CreatedBy, key, fp)
+	return dossier, err
 }
 
 type ReviseDossierCommand struct {

@@ -67,6 +67,9 @@ func normalize(s *domain.Snapshot) {
 	if s.BatchReceipts == nil {
 		s.BatchReceipts = map[string]domain.BatchReceipt{}
 	}
+	if s.DossierReceipts == nil {
+		s.DossierReceipts = map[string]domain.DossierReceipt{}
+	}
 }
 func (s *Store) Path() string              { return s.path }
 func (s *Store) Snapshot() domain.Snapshot { s.mu.RLock(); defer s.mu.RUnlock(); return clone(s.data) }
@@ -85,6 +88,35 @@ func (s *Store) CreateDossier(d domain.SafetyDossier, actor string) (domain.Safe
 	}
 	s.data = w
 	return d, nil
+}
+func (s *Store) CreateDossierWithReceipt(d domain.SafetyDossier, actor, idempotencyKey, fingerprint string) (domain.SafetyDossier, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if idempotencyKey != "" {
+		if receipt, ok := s.data.DossierReceipts[idempotencyKey]; ok {
+			if receipt.Fingerprint != fingerprint {
+				return domain.SafetyDossier{}, false, errors.New("幂等键已用于不同的创建请求")
+			}
+			if existing, ok := s.data.Dossiers[receipt.DossierID]; ok {
+				return existing, true, nil
+			}
+		}
+	}
+	if _, ok := s.data.Dossiers[d.ID]; ok {
+		return domain.SafetyDossier{}, false, errors.New("档案编号已存在")
+	}
+	w := clone(s.data)
+	w.Dossiers[d.ID] = d
+	e := event(d.ID, "dossier.created", actor, d.Version, "创建演出场次安全档案", w.Events)
+	w.Events = append(w.Events, e)
+	if idempotencyKey != "" {
+		w.DossierReceipts[idempotencyKey] = domain.DossierReceipt{DossierID: d.ID, Fingerprint: fingerprint}
+	}
+	if err := s.persist(w); err != nil {
+		return domain.SafetyDossier{}, false, err
+	}
+	s.data = w
+	return d, false, nil
 }
 func (s *Store) AddInspection(i domain.InspectionItem, actor string, expected int) (domain.InspectionItem, error) {
 	s.mu.Lock()

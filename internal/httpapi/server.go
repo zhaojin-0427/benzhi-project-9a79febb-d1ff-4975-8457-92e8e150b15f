@@ -140,7 +140,7 @@ func (s *Server) dossiers(w http.ResponseWriter, r *http.Request) {
 			bad(w, err)
 			return
 		}
-		d, err := s.service.CreateDossier(workflow.CreateDossierCommand{ShowName: in.ShowName, Venue: in.Venue, CreatedBy: in.CreatedBy, ScheduledAt: in.ScheduledAt, EquipmentBoundary: in.EquipmentBoundary})
+		d, err := s.service.CreateDossier(workflow.CreateDossierCommand{ShowName: in.ShowName, Venue: in.Venue, CreatedBy: in.CreatedBy, IdempotencyKey: r.Header.Get("Idempotency-Key"), ScheduledAt: in.ScheduledAt, EquipmentBoundary: in.EquipmentBoundary})
 		if err != nil {
 			bad(w, err)
 			return
