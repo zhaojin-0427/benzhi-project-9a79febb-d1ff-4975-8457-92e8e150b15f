@@ -21,6 +21,12 @@ type Service struct {
 func New(store *storage.Store) *Service      { return &Service{store: store} }
 func (s *Service) Snapshot() domain.Snapshot { return s.store.Snapshot() }
 
+func (s *Service) invalidateListCache() {
+	s.listMu.Lock()
+	s.listCache = nil
+	s.listMu.Unlock()
+}
+
 type CreateDossierCommand struct {
 	ShowName, Venue, CreatedBy string
 	ScheduledAt                time.Time
@@ -33,7 +39,11 @@ func (s *Service) CreateDossier(c CreateDossierCommand) (domain.SafetyDossier, e
 	}
 	now := time.Now().UTC()
 	d := domain.SafetyDossier{ID: newID("dos"), ShowName: strings.TrimSpace(c.ShowName), Venue: strings.TrimSpace(c.Venue), ScheduledAt: c.ScheduledAt, EquipmentBoundary: c.EquipmentBoundary, Status: domain.StatusDraft, Version: 1, CreatedBy: strings.TrimSpace(c.CreatedBy), UpdatedAt: now, Revisions: []domain.DossierRevision{}}
-	return s.store.CreateDossier(d, c.CreatedBy)
+	out, err := s.store.CreateDossier(d, c.CreatedBy)
+	if err == nil {
+		s.invalidateListCache()
+	}
+	return out, err
 }
 
 type ReviseDossierCommand struct {
@@ -71,6 +81,9 @@ func (s *Service) ReviseDossier(c ReviseDossierCommand) (domain.SafetyDossier, e
 		st.Dossiers[c.DossierID] = old
 		return nil
 	})
+	if err == nil {
+		s.invalidateListCache()
+	}
 	return d, err
 }
 
@@ -187,6 +200,7 @@ func (s *Service) RecordInspectionBatch(c BatchInspectionCommand) (BatchInspecti
 	if err != nil {
 		return BatchInspectionResult{}, err
 	}
+	s.invalidateListCache()
 	out := s.store.Snapshot()
 	result := BatchInspectionResult{Version: out.Dossiers[c.DossierID].Version, Added: added, Corrected: corrected}
 	for _, id := range ids {
@@ -407,6 +421,7 @@ func (s *Service) ReconcileIssues(c DetectionCommand) (DetectionResult, error) {
 	if err != nil {
 		return DetectionResult{}, err
 	}
+	s.invalidateListCache()
 	out := s.store.Snapshot()
 	for _, x := range out.Issues {
 		if x.DossierID == c.DossierID {
@@ -478,6 +493,7 @@ func (s *Service) SubmitRemediation(c RemediationCommand) (domain.SafetyIssue, e
 	if err != nil {
 		return domain.SafetyIssue{}, err
 	}
+	s.invalidateListCache()
 	return s.store.Snapshot().Issues[c.IssueID], nil
 }
 func allEvidenceReady(st domain.Snapshot, dossierID string) bool {
@@ -567,6 +583,7 @@ func (s *Service) ReviewIssue(issueID, actor, decision, note string, expected in
 	if err != nil {
 		return domain.SafetyIssue{}, err
 	}
+	s.invalidateListCache()
 	return s.store.Snapshot().Issues[issueID], nil
 }
 func allIssuesReviewed(st domain.Snapshot, dossierID string) bool {
@@ -626,6 +643,9 @@ func (s *Service) Freeze(dossierID, actor string, expected int) (domain.SafetyDo
 		st.Dossiers[dossierID] = dd
 		return nil
 	})
+	if err == nil {
+		s.invalidateListCache()
+	}
 	return out, err
 }
 
@@ -684,5 +704,6 @@ func (s *Service) IssuePermit(dossierID, actor string, expected int) (domain.Act
 		}
 		return domain.ActivationPermit{}, err
 	}
+	s.invalidateListCache()
 	return p, nil
 }
