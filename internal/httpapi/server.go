@@ -1,6 +1,9 @@
 package httpapi
 
 import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
@@ -44,9 +47,10 @@ func (s *Server) checkTemplate(w http.ResponseWriter, r *http.Request) {
 }
 
 type savedResponse struct {
-	status int
-	header http.Header
-	body   []byte
+	status      int
+	header      http.Header
+	body        []byte
+	fingerprint string
 }
 type captureWriter struct {
 	header http.Header
@@ -78,11 +82,23 @@ func (s *Server) idempotentHandler(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "读取请求体失败"})
+			return
+		}
+		_ = r.Body.Close()
+		r.Body = io.NopCloser(bytes.NewReader(body))
+		fingerprint := fingerprintBytes(body)
 		cacheKey := r.URL.Path + "|" + key
 		s.idemMu.Lock()
 		defer s.idemMu.Unlock()
 		saved, ok := s.idem[cacheKey]
 		if ok {
+			if saved.fingerprint != fingerprint {
+				writeJSON(w, http.StatusConflict, map[string]string{"error": "幂等键已用于不同的请求内容"})
+				return
+			}
 			for k, v := range saved.header {
 				w.Header()[k] = append([]string(nil), v...)
 			}
@@ -93,7 +109,7 @@ func (s *Server) idempotentHandler(next http.Handler) http.Handler {
 		cw := &captureWriter{header: make(http.Header)}
 		next.ServeHTTP(cw, r)
 		if cw.status >= 200 && cw.status < 300 {
-			s.idem[cacheKey] = savedResponse{status: cw.status, header: cw.header, body: append([]byte(nil), cw.body...)}
+			s.idem[cacheKey] = savedResponse{status: cw.status, header: cw.header, body: append([]byte(nil), cw.body...), fingerprint: fingerprint}
 		}
 		for k, v := range cw.header {
 			w.Header()[k] = v
@@ -598,4 +614,8 @@ func notFound(w http.ResponseWriter) {
 }
 func method(w http.ResponseWriter) {
 	writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "请求方法不支持"})
+}
+func fingerprintBytes(b []byte) string {
+	h := sha256.Sum256(b)
+	return hex.EncodeToString(h[:])
 }
