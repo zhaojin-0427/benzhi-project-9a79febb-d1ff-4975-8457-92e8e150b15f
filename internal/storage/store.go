@@ -12,9 +12,10 @@ import (
 )
 
 type Store struct {
-	mu   sync.RWMutex
-	path string
-	data domain.Snapshot
+	mu           sync.RWMutex
+	path         string
+	data         domain.Snapshot
+	snapshotFile *os.File
 }
 
 func Open(path string) (*Store, error) {
@@ -173,11 +174,22 @@ func (s *Store) persist(data domain.Snapshot) error {
 	if err = os.Rename(ledgerTmp, ledger); err != nil {
 		return err
 	}
-	tmp := s.path + ".tmp"
-	if err = os.WriteFile(tmp, b, 0644); err != nil {
+	if s.snapshotFile == nil {
+		s.snapshotFile, err = os.OpenFile(s.path, os.O_CREATE|os.O_RDWR, 0644)
+		if err != nil {
+			return err
+		}
+	}
+	if err = s.snapshotFile.Truncate(0); err != nil {
 		return err
 	}
-	return os.Rename(tmp, s.path)
+	if _, err = s.snapshotFile.Seek(0, 0); err != nil {
+		return err
+	}
+	if _, err = s.snapshotFile.Write(b); err != nil {
+		return err
+	}
+	return s.snapshotFile.Sync()
 }
 func event(dossierID, kind, actor string, version int, detail string, events []domain.AuditEvent) domain.AuditEvent {
 	e := domain.AuditEvent{ID: fmt.Sprintf("evt-%d", time.Now().UnixNano()), DossierID: dossierID, Type: kind, Actor: actor, At: time.Now().UTC(), Version: version, Detail: detail}
