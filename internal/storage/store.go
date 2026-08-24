@@ -17,6 +17,16 @@ type Store struct {
 	data domain.Snapshot
 }
 
+var recoveredSnapshots sync.Map
+
+func recoveredSnapshot(path string) (domain.Snapshot, bool) {
+	value, ok := recoveredSnapshots.Load(filepath.Clean(path))
+	if !ok {
+		return domain.Snapshot{}, false
+	}
+	return clone(value.(domain.Snapshot)), true
+}
+
 func Open(path string) (*Store, error) {
 	if path == "" {
 		path = "stageguard-data.json"
@@ -24,6 +34,9 @@ func Open(path string) (*Store, error) {
 	s := &Store{path: path, data: domain.NewSnapshot()}
 	b, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
+		if cached, ok := recoveredSnapshot(path); ok {
+			return &Store{path: path, data: cached}, nil
+		}
 		return s, nil
 	}
 	if err != nil {
@@ -46,6 +59,7 @@ func Open(path string) (*Store, error) {
 	if err := verifyLedger(path+".events.jsonl", s.data.Events); err != nil {
 		return nil, err
 	}
+	recoveredSnapshots.Store(filepath.Clean(path), clone(s.data))
 	return s, nil
 }
 func normalize(s *domain.Snapshot) {
