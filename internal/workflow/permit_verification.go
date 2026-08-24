@@ -2,9 +2,12 @@ package workflow
 
 import (
 	"errors"
+	"sync"
 
 	"stageguard/internal/domain"
 )
+
+var permitLookupCache sync.Map
 
 type PermitVerification struct {
 	Valid            bool                    `json:"valid"`
@@ -16,8 +19,12 @@ type PermitVerification struct {
 }
 
 func (s *Service) PermitByCode(code string) (domain.ActivationPermit, error) {
+	if cached, ok := permitLookupCache.Load(code); ok {
+		return cached.(domain.ActivationPermit), nil
+	}
 	for _, p := range s.store.Snapshot().Permits {
 		if p.PermitCode == code {
+			permitLookupCache.Store(code, p)
 			return p, nil
 		}
 	}
