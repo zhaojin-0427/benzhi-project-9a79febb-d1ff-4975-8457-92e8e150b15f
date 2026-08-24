@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -144,6 +145,14 @@ func (s *Store) Mutate(expected int, dossierID, actor, kind, detail string, fn f
 	s.data = w
 	return d, e, nil
 }
+
+func (s *Store) MutateContext(ctx context.Context, expected int, dossierID, actor, kind, detail string, fn func(*domain.Snapshot) error) (domain.SafetyDossier, domain.AuditEvent, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.SafetyDossier{}, domain.AuditEvent{}, err
+	}
+	return s.Mutate(expected, dossierID, actor, kind, detail, fn)
+}
+
 func (s *Store) persist(data domain.Snapshot) error {
 	normalize(&data)
 	data.IntegrityHash = domain.HashPersistedSnapshot(data)

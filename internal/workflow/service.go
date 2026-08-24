@@ -1,6 +1,7 @@
 package workflow
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"stageguard/internal/domain"
@@ -38,13 +39,17 @@ type ReviseDossierCommand struct {
 }
 
 func (s *Service) ReviseDossier(c ReviseDossierCommand) (domain.SafetyDossier, error) {
+	return s.ReviseDossierContext(context.Background(), c)
+}
+
+func (s *Service) ReviseDossierContext(ctx context.Context, c ReviseDossierCommand) (domain.SafetyDossier, error) {
 	if strings.TrimSpace(c.Actor) == "" {
 		return domain.SafetyDossier{}, errors.New("操作者不能为空")
 	}
 	if err := domain.ValidateDossierInput(c.ShowName, c.Venue, c.Actor, c.ScheduledAt, c.EquipmentBoundary); err != nil {
 		return domain.SafetyDossier{}, err
 	}
-	d, _, err := s.store.Mutate(c.ExpectedVersion, c.DossierID, c.Actor, "dossier.revised", "修订演出场次与设备隔离边界", func(st *domain.Snapshot) error {
+	d, _, err := s.store.MutateContext(ctx, c.ExpectedVersion, c.DossierID, c.Actor, "dossier.revised", "修订演出场次与设备隔离边界", func(st *domain.Snapshot) error {
 		old, ok := st.Dossiers[c.DossierID]
 		if !ok {
 			return errors.New("档案不存在")

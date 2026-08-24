@@ -175,7 +175,7 @@ func (s *Server) dossierRoute(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		in.DossierID = id
-		d, err := s.service.ReviseDossier(in)
+		d, err := s.service.ReviseDossierContext(r.Context(), in)
 		if err != nil {
 			bad(w, err)
 			return
