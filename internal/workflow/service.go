@@ -7,10 +7,16 @@ import (
 	"stageguard/internal/storage"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
-type Service struct{ store *storage.Store }
+type Service struct {
+	store *storage.Store
+
+	listMu    sync.RWMutex
+	listCache *dossierListCache
+}
 
 func New(store *storage.Store) *Service      { return &Service{store: store} }
 func (s *Service) Snapshot() domain.Snapshot { return s.store.Snapshot() }

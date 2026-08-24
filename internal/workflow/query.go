@@ -31,9 +31,24 @@ type DashboardTotals struct {
 	Total               int                          `json:"total"`
 }
 
+type dossierListCache struct {
+	items  []DossierListItem
+	totals DashboardTotals
+}
+
 func (s *Service) ListDossiers(f DossierFilter) ([]DossierListItem, DashboardTotals, error) {
 	if f.From != nil && f.To != nil && f.From.After(*f.To) {
 		return nil, DashboardTotals{}, errors.New("演出时间开始值不能晚于结束值")
+	}
+	cacheable := len(f.Statuses) == 0 && f.Venue == "" && f.Keyword == "" && f.From == nil && f.To == nil && !f.Unissued
+	if cacheable {
+		s.listMu.RLock()
+		cached := s.listCache
+		s.listMu.RUnlock()
+		if cached != nil {
+			items, totals := cloneDossierList(cached.items, cached.totals)
+			return items, totals, nil
+		}
 	}
 	snap := s.store.Snapshot()
 	statusSet := map[domain.DossierStatus]bool{}
@@ -97,7 +112,32 @@ func (s *Service) ListDossiers(f DossierFilter) ([]DossierListItem, DashboardTot
 		}
 		return a.ScheduledAt.Before(b.ScheduledAt)
 	})
+	if cacheable {
+		cachedItems, cachedTotals := cloneDossierList(items, tot)
+		s.listMu.Lock()
+		s.listCache = &dossierListCache{items: cachedItems, totals: cachedTotals}
+		s.listMu.Unlock()
+	}
 	return items, tot, nil
+}
+
+func cloneDossierList(items []DossierListItem, totals DashboardTotals) ([]DossierListItem, DashboardTotals) {
+	out := append([]DossierListItem(nil), items...)
+	for i := range out {
+		out[i].Dossier.EquipmentBoundary = append([]domain.Equipment(nil), out[i].Dossier.EquipmentBoundary...)
+		out[i].Dossier.Revisions = append([]domain.DossierRevision(nil), out[i].Dossier.Revisions...)
+		counts := make(map[domain.IssueSeverity]int, len(out[i].UnresolvedBySeverity))
+		for severity, count := range out[i].UnresolvedBySeverity {
+			counts[severity] = count
+		}
+		out[i].UnresolvedBySeverity = counts
+	}
+	byStatus := make(map[domain.DossierStatus]int, len(totals.ByStatus))
+	for status, count := range totals.ByStatus {
+		byStatus[status] = count
+	}
+	totals.ByStatus = byStatus
+	return out, totals
 }
 
 func sortIssues(items []domain.SafetyIssue) {
