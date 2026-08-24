@@ -149,12 +149,12 @@ func (s *Store) persist(data domain.Snapshot) error {
 	data.IntegrityHash = domain.HashPersistedSnapshot(data)
 	if dir := filepath.Dir(s.path); dir != "." {
 		if err := os.MkdirAll(dir, 0755); err != nil {
-			return err
+			return fmt.Errorf("创建数据目录失败: %v", err)
 		}
 	}
 	b, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
-		return err
+		return fmt.Errorf("编码数据快照失败: %v", err)
 	}
 	ledger := s.path + ".events.jsonl"
 	ledgerTmp := ledger + ".tmp"
@@ -162,22 +162,25 @@ func (s *Store) persist(data domain.Snapshot) error {
 	for _, event := range data.Events {
 		line, marshalErr := json.Marshal(event)
 		if marshalErr != nil {
-			return marshalErr
+			return fmt.Errorf("编码审计事件失败: %v", marshalErr)
 		}
 		lines = append(lines, line...)
 		lines = append(lines, '\n')
 	}
 	if err = os.WriteFile(ledgerTmp, lines, 0644); err != nil {
-		return err
+		return fmt.Errorf("写入审计账本临时文件失败: %v", err)
 	}
 	if err = os.Rename(ledgerTmp, ledger); err != nil {
-		return err
+		return fmt.Errorf("替换审计账本失败: %v", err)
 	}
 	tmp := s.path + ".tmp"
 	if err = os.WriteFile(tmp, b, 0644); err != nil {
-		return err
+		return fmt.Errorf("写入数据快照临时文件失败: %v", err)
 	}
-	return os.Rename(tmp, s.path)
+	if err = os.Rename(tmp, s.path); err != nil {
+		return fmt.Errorf("替换数据快照失败: %v", err)
+	}
+	return nil
 }
 func event(dossierID, kind, actor string, version int, detail string, events []domain.AuditEvent) domain.AuditEvent {
 	e := domain.AuditEvent{ID: fmt.Sprintf("evt-%d", time.Now().UnixNano()), DossierID: dossierID, Type: kind, Actor: actor, At: time.Now().UTC(), Version: version, Detail: detail}
