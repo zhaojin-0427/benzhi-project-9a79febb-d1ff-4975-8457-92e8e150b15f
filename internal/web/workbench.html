@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>舞台机械安全启用核验台</title><link rel="stylesheet" href="/style.css"></head>
+<body>
+<header><div><p class="eyebrow">STAGEGUARD / SAFETY CONTROL</p><h1>舞台机械安全启用核验台</h1></div><span id="connection" class="tag">正在加载</span></header>
+<main>
+  <section class="panel filters"><h2>档案筛选</h2><form id="filters"><select name="status"><option value="">全部状态</option><option>草稿</option><option>检查中</option><option>待整改</option><option>待复核</option><option>已冻结</option><option>已签发</option></select><input name="venue" placeholder="场地"><input name="keyword" placeholder="演出、场地或档案编号"><input name="from" type="datetime-local"><input name="to" type="datetime-local"><label><input name="unissued" type="checkbox"> 仅未签发</label><button>应用筛选</button></form></section>
+  <section id="totals" class="totals"></section>
+  <div class="layout"><aside class="panel"><div class="title-row"><h2>安全档案</h2><button id="create">新建</button></div><div id="dossiers" class="list"></div></aside><article>
+    <section id="empty" class="panel empty">请从左侧选择档案，或新建演出场次安全档案。</section>
+    <div id="detail" hidden>
+      <section class="panel"><div class="title-row"><h2 id="dossier-title"></h2><button id="edit-dossier">编辑草稿</button></div><div id="dossier-meta"></div><form id="dossier-form" class="drawer" hidden></form></section>
+      <section class="panel"><div class="title-row"><h2>设备检查矩阵</h2><button id="add-batch">批量编辑缺失项</button></div><div id="matrix-summary"></div><div id="matrix" class="matrix"></div><form id="inspection-form" class="drawer" hidden></form><form id="batch-form" class="drawer" hidden></form><button id="detect">自动检测风险</button><div id="detect-result"></div></section>
+      <section class="panel"><h2>风险、整改与逐项复核</h2><div id="issues"></div><form id="remediation-form" class="drawer" hidden></form><div id="revision-detail"></div><button id="freeze">冻结候选安全版本</button></section>
+      <section class="panel"><h2>启用许可现场核验</h2><div id="permit-current"></div><button id="issue-permit">签发许可</button><form id="verify-form"><input name="code" placeholder="输入许可编码" required><button>查询并核验</button></form><div id="verify-result"></div></section>
+      <section class="panel"><div class="title-row"><h2>审计时间线</h2><select id="audit-type"><option value="">全部事件</option><option value="dossier.revised">档案修订</option><option value="inspection.batch_recorded">检查录入/更正</option><option value="issues.reconciled">风险对账</option><option value="issue.remediated">整改修订</option><option value="issue.reviewed">问题复核</option><option value="dossier.frozen">档案冻结</option></select></div><div id="timeline"></div><div><button id="audit-prev">上一页</button><span id="audit-page"></span><button id="audit-next">下一页</button></div></section>
+    </div>
+  </article></div>
+</main><div id="notice" role="status"></div><script src="/app.js"></script></body></html>
