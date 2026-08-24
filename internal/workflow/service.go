@@ -7,12 +7,24 @@ import (
 	"stageguard/internal/storage"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
-type Service struct{ store *storage.Store }
+type issueQueryCacheEntry struct {
+	version int
+	items   []domain.SafetyIssue
+}
 
-func New(store *storage.Store) *Service      { return &Service{store: store} }
+type Service struct {
+	store        *storage.Store
+	issueCacheMu sync.RWMutex
+	issueCache   map[string]issueQueryCacheEntry
+}
+
+func New(store *storage.Store) *Service {
+	return &Service{store: store, issueCache: map[string]issueQueryCacheEntry{}}
+}
 func (s *Service) Snapshot() domain.Snapshot { return s.store.Snapshot() }
 
 type CreateDossierCommand struct {

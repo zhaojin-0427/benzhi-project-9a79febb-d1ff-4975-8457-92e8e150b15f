@@ -116,8 +116,15 @@ func sortIssues(items []domain.SafetyIssue) {
 
 func (s *Service) IssuesForDossier(dossierID string) ([]domain.SafetyIssue, error) {
 	snap := s.store.Snapshot()
-	if _, ok := snap.Dossiers[dossierID]; !ok {
+	dossier, ok := snap.Dossiers[dossierID]
+	if !ok {
 		return nil, errors.New("档案不存在")
+	}
+	s.issueCacheMu.RLock()
+	cached, found := s.issueCache[dossierID]
+	s.issueCacheMu.RUnlock()
+	if found && cached.version == dossier.Version {
+		return cached.items, nil
 	}
 	items := []domain.SafetyIssue{}
 	for _, issue := range snap.Issues {
@@ -126,6 +133,9 @@ func (s *Service) IssuesForDossier(dossierID string) ([]domain.SafetyIssue, erro
 		}
 	}
 	sortIssues(items)
+	s.issueCacheMu.Lock()
+	s.issueCache[dossierID] = issueQueryCacheEntry{version: dossier.Version, items: items}
+	s.issueCacheMu.Unlock()
 	return items, nil
 }
 
